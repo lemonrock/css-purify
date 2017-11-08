@@ -174,15 +174,22 @@ impl Element for PreprocessedHtml5ElementWrappingNode
 	}
 	
 	#[inline(always)]
-	fn match_non_ts_pseudo_class<F: FnMut(&Self, ElementSelectorFlags)>(&self, pc: &<Self::Impl as SelectorImpl>::NonTSPseudoClass, context: &mut LocalMatchingContext<Self::Impl>, relevant_link: &RelevantLinkStatus, flags_setter: &mut F) -> bool
+	fn match_non_ts_pseudo_class<F: FnMut(&Self, ElementSelectorFlags)>(&self, pc: &<Self::Impl as SelectorImpl>::NonTSPseudoClass, _context: &mut LocalMatchingContext<Self::Impl>, _relevant_link: &RelevantLinkStatus, _flags_setter: &mut F) -> bool
 	{
-		unimplemented!();
+		use ::css::domain::selectors::NonTreeStructuralPseudoClass::*;
+		
+		match *pc
+		{
+			any_link(_) | link | visited => self.is_link(),
+			
+			_ => true,
+		}
 	}
 	
 	#[inline(always)]
-	fn match_pseudo_element(&self, pe: &<Self::Impl as SelectorImpl>::PseudoElement, context: &mut MatchingContext) -> bool
+	fn match_pseudo_element(&self, _pe: &<Self::Impl as SelectorImpl>::PseudoElement, _context: &mut MatchingContext) -> bool
 	{
-		unimplemented!();
+		true
 	}
 	
 	#[inline(always)]
