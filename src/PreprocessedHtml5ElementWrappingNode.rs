@@ -85,28 +85,28 @@ impl Element for PreprocessedHtml5ElementWrappingNode
 	#[inline(always)]
 	fn first_child_element(&self) -> Option<Self>
 	{
-		unimplemented!();
+		self.iterate_element_children(false)
 	}
 	
 	/// Skips non-element nodes
 	#[inline(always)]
 	fn last_child_element(&self) -> Option<Self>
 	{
-		unimplemented!();
+		self.iterate_element_children(true)
 	}
 	
 	/// Skips non-element nodes
 	#[inline(always)]
 	fn prev_sibling_element(&self) -> Option<Self>
 	{
-		unimplemented!();
+		self.iterate_element_siblings(false)
 	}
 	
 	/// Skips non-element nodes
 	#[inline(always)]
 	fn next_sibling_element(&self) -> Option<Self>
 	{
-		unimplemented!();
+		self.iterate_element_siblings(true)
 	}
 	
 	#[inline(always)]
@@ -230,7 +230,7 @@ impl Element for PreprocessedHtml5ElementWrappingNode
 
 impl PreprocessedHtml5ElementWrappingNode
 {
-	/// Gets an attribute's value, if it exists
+	/// If this is an element node, use an attribute's value to produce a result, if the attribute exists, otherwise return a default value
 	#[inline(always)]
 	pub fn use_attribute_value<R, AttributeValueUser: Fn(&str) -> R>(&self, attribute_name: &LocalName, attribute_value_user: AttributeValueUser, default: R) -> R
 	{
@@ -239,6 +239,42 @@ impl PreprocessedHtml5ElementWrappingNode
 			NodeData::Element { ref attrs, .. } => Self::_use_attribute_value(attribute_name, attribute_value_user, default, attrs),
 			
 			_ => default,
+		}
+	}
+	
+	/// If this is a text node, use the text's value to produce a result otherwise return a default value
+	#[inline(always)]
+	pub fn use_text_value<R, TextValueUser: Fn(&str) -> R>(&self, text_value_user: TextValueUser, default: R) -> R
+	{
+		match self.node.data
+		{
+			Text { ref contents } => text_value_user(contents.borrow().deref()),
+			
+			_ => default,
+		}
+	}
+	
+	/// Is this an element node, eg <a href="hello"> ?
+	#[inline(always)]
+	pub fn is_element_node(&self) -> bool
+	{
+		match self.node.data
+		{
+			NodeData::Element { .. } => true,
+			
+			_ => false,
+		}
+	}
+	
+	/// Is this a text node, eg BLAH in <a>BLAH</a> ?
+	#[inline(always)]
+	pub fn is_text_node(&self) -> bool
+	{
+		match self.node.data
+		{
+			NodeData::Text { .. } => true,
+			
+			_ => false,
 		}
 	}
 	
@@ -253,6 +289,86 @@ impl PreprocessedHtml5ElementWrappingNode
 			}
 		}
 		default
+	}
+	
+	#[inline(always)]
+	fn iterate_element_children(&self, reverse: bool) -> Option<Self>
+	{
+		#[inline(always)]
+		fn iterate<'a, I: Iterator<Item=&'a std::rc::Rc<Node>>>(mut children_iterator: I) -> Option<PreprocessedHtml5ElementWrappingNode>
+		{
+			let mut child_node;
+			while
+			{
+				child_node = children_iterator.next();
+				child_node.is_some()
+			}
+			{
+				let possible = child_node.unwrap();
+				match possible.data
+				{
+					NodeData::Element { .. } => return Some(PreprocessedHtml5ElementWrappingNode
+					{
+						node: possible.clone(),
+					}),
+					
+					_ => (),
+				}
+			}
+			None
+		}
+		
+		let borrowed = self.node.children.borrow();
+		let iterator = borrowed.iter();
+		if reverse
+		{
+			iterate(iterator.rev())
+		}
+		else
+		{
+			iterate(iterator)
+		}
+		
+	}
+	
+	#[inline(always)]
+	fn iterate_element_siblings(&self, reverse: bool) -> Option<Self>
+	{
+		#[inline(always)]
+		fn iterate<'a, I: Iterator<Item=&'a std::rc::Rc<Node>>>(this: &PreprocessedHtml5ElementWrappingNode, sibling_iterator: I) -> Option<PreprocessedHtml5ElementWrappingNode>
+		{
+			let mut previous_sibling = None;
+			for current_sibling in sibling_iterator
+			{
+				if Rc::ptr_eq(&this.node, &current_sibling)
+				{
+					return previous_sibling;
+				}
+				previous_sibling = Some(PreprocessedHtml5ElementWrappingNode
+				{
+					node: current_sibling.clone(),
+				});
+			}
+			unreachable!();
+		}
+		
+		if let Some(parent) = self.parent_element()
+		{
+			let borrowed = parent.node.children.borrow();
+			let iterator = borrowed.iter();
+			if reverse
+			{
+				iterate(self, iterator.rev())
+			}
+			else
+			{
+				iterate(self, iterator)
+			}
+		}
+		else
+		{
+			None
+		}
 	}
 	
 	#[inline(always)]
