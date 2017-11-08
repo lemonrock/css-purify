@@ -146,7 +146,31 @@ impl Element for PreprocessedHtml5ElementWrappingNode
 	fn attr_matches(&self, ns: &NamespaceConstraint<&<Self::Impl as SelectorImpl>::NamespaceUrl>, local_name: &<Self::Impl as SelectorImpl>::LocalName, operation: &AttrSelectorOperation<&<Self::Impl as SelectorImpl>::AttrValue>)
 		-> bool
 	{
-		unimplemented!();
+		use self::NamespaceConstraint::*;
+		
+		match self.node.data
+		{
+			NodeData::Element { ref attrs, .. } =>
+			{
+				for attribute in attrs.borrow().iter()
+				{
+					if attribute.name.local.deref() == local_name.deref()
+					{
+						match *ns
+						{
+							Any => return operation.eval_str(attribute.value.deref()),
+							Specific(&NamespaceUrl(ref atom)) => if atom.deref() == attribute.name.ns.deref()
+							{
+								return operation.eval_str(attribute.value.deref());
+							},
+						}
+					}
+				}
+				false
+			},
+			
+			_ => false,
+		}
 	}
 	
 	#[inline(always)]

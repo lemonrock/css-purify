@@ -15,6 +15,7 @@ extern crate css;
 #[macro_use] extern crate quick_error;
 
 
+use ::css::domain::atRules::namespace::NamespaceUrl;
 use ::css::domain::selectors::OurSelectorImpl;
 use ::css::selectors::Element;
 use ::css::selectors::OpaqueElement;
