@@ -2,26 +2,35 @@
 // Copyright © 2017 The developers of css-purify. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/css-purify/master/COPYRIGHT.
 
 
-quick_error!
+trait VecExt<T>
 {
-	/// Represents errors that can happen within css-purify
-	#[derive(Debug)]
-	pub enum PurifyError
+	fn retain_mut<F: FnMut(&mut T) -> bool>(&mut self, f: F);
+}
+
+impl<T> VecExt<T> for Vec<T>
+{
+	fn retain_mut<F: FnMut(&mut T) -> bool>(&mut self, mut f: F)
 	{
-		/// An input-output error when processing a file.
-		Io(path: PathBuf, cause: ::std::io::Error)
+		let length = self.len();
+		let mut delete_count = 0;
 		{
-			cause(cause)
-			description(cause.description())
-			display("I/O error with {:?} was '{}'", path, cause)
-			context(path: &'a Path, cause: ::std::io::Error) -> (path.to_path_buf(), cause)
+			let vector = &mut **self;
+			
+			for index in 0 .. length
+			{
+				if !f(&mut vector[index])
+				{
+					delete_count += 1;
+				}
+				else if delete_count > 0
+				{
+					vector.swap(index - delete_count, index);
+				}
+			}
 		}
-		
-		/// A file, when processed, is invalid according to `reason`.
-		InvalidFile(path: PathBuf, reason: String)
+		if delete_count > 0
 		{
-			description(&reason)
-			display("The file {:?} can not be used because: {}", path, reason)
+			self.truncate(length - delete_count);
 		}
 	}
 }

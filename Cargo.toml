@@ -27,6 +27,6 @@ debug-assertions = false
 codegen-units = 1
 
 [dependencies]
-css = "0.0.17"
+css = "0.0.18"
 html5ever = "0.20.0"
 quick-error = "1.2.1"

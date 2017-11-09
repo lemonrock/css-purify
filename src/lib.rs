@@ -2,20 +2,52 @@
 // Copyright © 2017 The developers of css-purify. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/css-purify/master/COPYRIGHT.
 
 
+#![allow(non_upper_case_globals)]
 #![warn(missing_docs)]
 
 
 //! # css-purify
 //!
-//! This library provides a way to identify and remove unused CSS.
+//! This library provides a way to identify and remove unused CSS from stylesheets.
+//! It does this by looking for selectors that do not match a provided HTML5 document.
+//! Pseudo-elements and psuedo-classes are assumed to always match except for `:empty`, `:root`, `:any-link`, `:link` and `:visited`.
+//!
+//!
+//! ## Getting Started
+//!
+//!
+//! ### Purifying a CSS stylesheet
+//! ```
+//! extern crate css_purify;
+//! use ::css_purify::RcDomExt;
+//! use ::css_purify::css::Stylesheet;
+//!
+//! let document = RcDomExt::from_file_path_verified_and_stripped_of_comments_and_processing_instructions_and_with_a_sane_doc_type("/path/to/document.html");
+//!	let stylesheet = Stylesheet::from_file_path("/path/to/stylesheet.css");
+//! stylesheet.remove_unused_css_rules(&document);
+//!
+//! // (Optionally) Save stylesheet
+//! stylesheet.to_file_path("/path/to/stylesheet.css");
+//!
+//! // (Optionally) Save document
+//! document.XXXXX
+//!
+//! // (Optionally) Inject CSS into document, eg for use in self-contained Google AMP pages.
+//! XXXXX
+//!
 
 
-extern crate css;
+pub extern crate css;
 #[macro_use] extern crate html5ever;
 #[macro_use] extern crate quick_error;
 
 
 use ::css::domain::atRules::namespace::NamespaceUrl;
+use ::css::domain::CssRule;
+use ::css::domain::HasCssRules;
+use ::css::domain::selectors::DeduplicatedSelectors;
+use ::css::domain::selectors::matches;
+use ::css::domain::selectors::OurSelector;
 use ::css::domain::selectors::OurSelectorImpl;
 use ::css::selectors::Element;
 use ::css::selectors::OpaqueElement;
@@ -38,76 +70,33 @@ use ::html5ever::rcdom::Node;
 use ::html5ever::rcdom::NodeData;
 use ::html5ever::rcdom::NodeData::*;
 use ::html5ever::rcdom::RcDom;
+use ::html5ever::serialize::AttrRef;
+use ::html5ever::serialize::Serialize;
+use ::html5ever::serialize::Serializer;
+use ::quick_error::ResultExt;
 use ::std::ascii::AsciiExt;
 use ::std::cell::Cell;
 use ::std::cell::RefCell;
 use ::std::fmt;
 use ::std::fmt::Debug;
 use ::std::fmt::Formatter;
+use ::std::io;
+use ::std::io::Write;
+use ::std::mem::uninitialized;
 use ::std::ops::Deref;
 use ::std::path::Path;
 use ::std::path::PathBuf;
 use ::std::rc::Rc;
 
 
+include!("DeduplicatedSelectorsExt.rs");
+include!("FindHtmlElementsMatchingCssSelector.rs");
+include!("HasCssRulesExt.rs");
+include!("MinifyingHtmlSerializer.rs");
+include!("MinifyingHtmlSerializerStackItem.rs");
 include!("NodeExt.rs");
 include!("QualNameExt.rs");
 include!("PreprocessedHtml5ElementWrappingNode.rs");
 include!("PurifyError.rs");
 include!("RcDomExt.rs");
-
-
-
-
-//	pub fn operateOnStyleRules<H: HasCssRules, UseStyleRule: FnMut(&mut StyleRule)>(hasCssRules: &mut H, mut useStyleRule: UseStyleRule)
-//	{
-//		use ::css::domain::CssRule::*;
-//
-//		for cssRule in hasCssRules.css_rules_vec_mut().iter_mut()
-//		{
-//			match *cssRule
-//			{
-//				Style(ref mut styleRule) => useStyleRule(styleRule),
-//
-//				Media(ref mut media) => Self::operateOnStyleRules(media, useStyleRule),
-//
-//				Supports(ref mut supports) => Self::operateOnStyleRules(supports, useStyleRule),
-//
-//				Document(ref mut document) => Self::operateOnStyleRules(document, useStyleRule),
-//
-//				_ =>
-//				{
-//				}
-//			}
-//		}
-//	}
-//
-//	pub fn x(filePath: &Path, stylesheet: &mut Stylesheet) -> Result<(), CordialError>
-//	{
-//		let dom = filePath.fileContentsAsHtmlDom()?;
-//
-//		dom.verify(filePath)?;
-//
-//		dom.recursivelyStripNodesOfCommentsAndProcessingInstructionAndCreateSaneDocType(filePath)?;
-//
-//		Self::operateOnStyleRules(stylesheet, |mut styleRule|
-//		{
-//			// do something with an &mut StyleRule...
-//		});
-//
-//		/*
-//			CSS
-//				- strip all namespaced selectors (HTML5 is not XHTML)
-//		*/
-//
-//		// TODO: Sort element attributes; check id has single value; sort class attribute
-//
-//		// TODO: Remove extra spaces in class attributes, img src, and others...
-//
-//		// TODO: Custom serialization to eliminate unnecessary " and ' in attributes
-//
-//		// TODO: convert all node names, attributes to lower case (can be done at serialization time)
-//
-//		filePath.createFileWithHtmlDom(&dom.document).context(filePath)?;
-//		Ok(())
-//	}
+include!("VecExt.rs");

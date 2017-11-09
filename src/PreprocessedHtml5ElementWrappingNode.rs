@@ -54,13 +54,29 @@ impl QualNameExt for PreprocessedHtml5ElementWrappingNode
 			_ => false,
 		}
 	}
+	
+	#[inline(always)]
+	fn can_have_children(&self) -> bool
+	{
+		self.node.can_have_children()
+	}
+	
+	#[inline(always)]
+	fn text_content_should_be_escaped(&self) -> bool
+	{
+		match self.node.data
+		{
+			NodeData::Element { ref name, .. } => name.text_content_should_be_escaped(),
+			
+			_ => false,
+		}
+	}
 }
 
 impl Element for PreprocessedHtml5ElementWrappingNode
 {
 	type Impl = OurSelectorImpl;
 	
-	/// Converts self into an opaque representation.
 	#[inline(always)]
 	fn opaque(&self) -> OpaqueElement
 	{
@@ -81,28 +97,24 @@ impl Element for PreprocessedHtml5ElementWrappingNode
 		}
 	}
 	
-	/// Skips non-element nodes
 	#[inline(always)]
 	fn first_child_element(&self) -> Option<Self>
 	{
 		self.iterate_element_children(false)
 	}
 	
-	/// Skips non-element nodes
 	#[inline(always)]
 	fn last_child_element(&self) -> Option<Self>
 	{
 		self.iterate_element_children(true)
 	}
 	
-	/// Skips non-element nodes
 	#[inline(always)]
 	fn prev_sibling_element(&self) -> Option<Self>
 	{
 		self.iterate_element_siblings(false)
 	}
 	
-	/// Skips non-element nodes
 	#[inline(always)]
 	fn next_sibling_element(&self) -> Option<Self>
 	{

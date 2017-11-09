@@ -3,8 +3,28 @@
 
 
 /// This trait adds additional methods to a HTML DOM.
-pub trait RcDomExt
+pub trait RcDomExt: Sized
 {
+	/// Serializes an instance of an HTML DOM to file.
+	#[inline(always)]
+	fn to_file_path<P: AsRef<Path>>(&self, html_document_file_path: P) -> Result<(), PurifyError>;
+	
+	/// Serializes an instance of an HTML DOM to a vector of bytes.
+	#[inline(always)]
+	fn to_bytes(&self) -> io::Result<Vec<u8>>;
+	
+	/// Serializes an instance of an HTML DOM to a writer.
+	#[inline(always)]
+	fn serialize_to_writer<W: Write>(&self, writer: W) -> io::Result<()>;
+	
+	/// Creates an instance of an HTML DOM from a file path which is verified, stripped and with a sane DocType.
+	#[inline(always)]
+	fn from_file_path_verified_and_stripped_of_comments_and_processing_instructions_and_with_a_sane_doc_type<P: AsRef<Path>>(html_document_file_path: P) -> Result<Self, PurifyError>;
+	
+	/// Creates an instance of an HTML DOM from a file path
+	#[inline(always)]
+	fn from_file_path<P: AsRef<Path>>(file_path: P) -> Result<Self, PurifyError>;
+	
 	/// Verify that this HTML DOM is valid.
 	#[inline(always)]
 	fn verify(&self, context: &Path) -> Result<(), PurifyError>;
@@ -31,6 +51,74 @@ pub trait RcDomExt
 
 impl RcDomExt for RcDom
 {
+	/// Saves an instance of an HTML DOM.
+	#[inline(always)]
+	fn to_file_path<P: AsRef<Path>>(&self, html_document_file_path: P) -> Result<(), PurifyError>
+	{
+		self.document.to_file_path(html_document_file_path)
+	}
+	
+	#[inline(always)]
+	fn to_bytes(&self) -> io::Result<Vec<u8>>
+	{
+		self.document.to_bytes()
+	}
+	
+	#[inline(always)]
+	fn serialize_to_writer<W: Write>(&self, writer: W) -> io::Result<()>
+	{
+		self.document.serialize_to_writer(writer)
+	}
+	
+	#[inline(always)]
+	fn from_file_path_verified_and_stripped_of_comments_and_processing_instructions_and_with_a_sane_doc_type<P: AsRef<Path>>(html_document_file_path: P) -> Result<Self, PurifyError>
+	{
+		let path = html_document_file_path.as_ref();
+		
+		let document = Self::from_file_path(path)?;
+		document.verify(path)?;
+		document.recursively_strip_nodes_of_comments_and_processing_instructions_and_create_sane_doc_type(path)?;
+		Ok(document)
+	}
+	
+	#[inline(always)]
+	fn from_file_path<P: AsRef<Path>>(html_document_file_path: P) -> Result<Self, PurifyError>
+	{
+		use ::html5ever::driver::parse_document;
+		use ::html5ever::driver::ParseOpts;
+		use ::html5ever::tokenizer::TokenizerOpts;
+		use ::html5ever::tree_builder::QuirksMode;
+		use ::html5ever::tree_builder::TreeBuilderOpts;
+		use ::html5ever::tendril::TendrilSink;
+		
+		let tree_sink = RcDom::default();
+		let parse_options = ParseOpts
+		{
+			tokenizer: TokenizerOpts
+			{
+				exact_errors: true,
+				discard_bom: true,
+				profile: false,
+				initial_state: None,
+				last_start_tag_name: None,
+			},
+			tree_builder: TreeBuilderOpts
+			{
+				exact_errors: true,
+				scripting_enabled: true,
+				iframe_srcdoc: false,
+				drop_doctype: false,
+				ignore_missing_rules: false,
+				quirks_mode: QuirksMode::NoQuirks,
+			},
+		};
+		let parser = parse_document(tree_sink, parse_options);
+		
+		let path = html_document_file_path.as_ref();
+		let document = parser.from_utf8().from_file(path).context(path)?;
+		Ok(document)
+	}
+	
 	#[inline(always)]
 	fn verify(&self, context: &Path) -> Result<(), PurifyError>
 	{
@@ -111,9 +199,9 @@ impl RcDomExt for RcDom
 		{
 			match child_of_document.data
 			{
-				Text { .. } => return Err(PurifyError::InvalidFile(context.to_path_buf(), "Document nodes are not allowed in the root".to_owned())),
+				Text { .. } => return Err(PurifyError::InvalidFile(context.to_path_buf(), "Text nodes are not allowed in the root".to_owned())),
 				
-				Document => return Err(PurifyError::InvalidFile(context.to_path_buf(), "Text nodes are not allowed in the root".to_owned())),
+				Document => return Err(PurifyError::InvalidFile(context.to_path_buf(), "Document nodes are not allowed in the root".to_owned())),
 				
 				Doctype { ref name, ref public_id, ref system_id } =>
 				{
@@ -142,7 +230,7 @@ impl RcDomExt for RcDom
 				
 				NodeData::Element { ref name, .. } =>
 				{
-					if !name.local.eq_str_ignore_ascii_case("html")
+					if !name.is_only_local(&local_name!("html"))
 					{
 						return Err(PurifyError::InvalidFile(context.to_path_buf(), format!("Non html-element '{:?}' found in document root", name)));
 					}
