@@ -79,145 +79,6 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 		}
 	}
 	
-	// https://www.w3.org/TR/html5/syntax.html#optional-tags
-	//noinspection SpellCheckingInspection
-	fn omit_start_element(&self, node: &Rc<Node>, name: &QualName, attributes: &RefCell<Vec<Attribute>>) -> bool
-	{
-		let attributes = attributes.borrow();
-		
-		// If an element has no attributes it may be eligible for its start tag to be omitted.
-		// The html, head and body start tags can not be omitted for the Google AMP variant of HTML.
-		if attributes.is_empty() && name.is_unprefixed_and_unnamespaced()
-		{
-			match name.local
-			{
-				local_name!("html") if self.html_head_and_body_tags_are_optional =>
-				{
-					// "An html element's start tag may be omitted if the first thing inside the html element is not a comment."
-					if let Some(first_child) = node.first_child()
-					{
-						match first_child.data
-						{
-							Comment { .. } => false,
-							
-							_ => true,
-						}
-					}
-					else
-					{
-						false
-					}
-				}
-				
-				local_name!("head") if self.html_head_and_body_tags_are_optional =>
-				{
-					// "A head element's start tag may be omitted if the element is empty, or if the first thing inside the head element is an element."
-					if let Some(first_child) = node.first_child()
-					{
-						match first_child.data
-						{
-							NodeData::Element { .. } => true,
-							
-							_ => false,
-						}
-					}
-					else
-					{
-						true
-					}
-				}
-				
-				local_name!("body") if self.html_head_and_body_tags_are_optional =>
-				{
-					// "A body element's start tag may be omitted if the element is empty, or if the first thing inside the body element is not a space character or a comment, except if the first thing inside the body element is a meta, link, script, style, or template element."
-					if let Some(first_child) = node.first_child()
-					{
-						match first_child.data
-						{
-							Comment { .. } => false,
-							
-							// "The space characters, for the purposes of this specification, are U+0020 SPACE, "tab" (U+0009), "LF" (U+000A), "FF" (U+000C), and "CR" (U+000D)."
-							Text { ref contents } => match contents.borrow().deref().chars().nth(0)
-							{
-								Some('\u{0020}') | Some('\u{0009}') | Some('\u{000A}') | Some('\u{000C}') | Some('\u{000D}') => false,
-								
-								_ => true
-							},
-							
-							NodeData::Element { ref name, .. } => if name.is_unprefixed_and_unnamespaced()
-							{
-								match name.local
-								{
-									local_name!("meta") | local_name!("link") | local_name!("script") | local_name!("style") | local_name!("template") => false,
-									
-									_ => true,
-								}
-							}
-							else
-							{
-								false
-							},
-							
-							_ => false,
-						}
-					}
-					else
-					{
-						true
-					}
-				}
-				
-				local_name!("colgroup") =>
-				{
-					// "A colgroup element's start tag may be omitted if the first thing inside the colgroup element is a col element, and if the element is not immediately preceded by another colgroup element whose end tag has been omitted. (It can't be omitted if the element is empty.)"
-					if let Some(first_child) = node.first_child()
-					{
-						if first_child.is_only_local(&local_name!("col"))
-						{
-							// if the element is not immediately preceded by another colgroup element whose end tag has been omitted
-							unimplemented!();
-						}
-						else
-						{
-							false
-						}
-					}
-					else
-					{
-						false
-					}
-				}
-				
-				local_name!("tbody") =>
-				{
-					// "A tbody element's start tag may be omitted if the first thing inside the tbody element is a tr element, and if the element is not immediately preceded by a tbody, thead, or tfoot element whose end tag has been omitted. (It can't be omitted if the element is empty.)"
-					if let Some(first_child) = node.first_child()
-					{
-						if first_child.is_only_local(&local_name!("tr"))
-						{
-							// if the element is not immediately preceded by a tbody, thead, or tfoot element whose end tag has been omitted
-							unimplemented!();
-						}
-						else
-						{
-							false
-						}
-					}
-					else
-					{
-						false
-					}
-				}
-				
-				_ => false,
-			}
-		}
-		else
-		{
-			false
-		}
-	}
-	
 	fn write_start_element(&mut self, name: &QualName, attributes: &RefCell<Vec<Attribute>>) -> io::Result<()>
 	{
 		self.write_all(b"<")?;
@@ -498,59 +359,13 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 					}
 				}
 				
-				local_name!("colgroup") =>
-				{
-					// "A colgroup element's end tag may be omitted if the colgroup element is not immediately followed by a space character or a comment."
-					match node.next_sibling()
-					{
-						Some(following) => match following.data
-						{
-							// "The space characters, for the purposes of this specification, are U+0020 SPACE, "tab" (U+0009), "LF" (U+000A), "FF" (U+000C), and "CR" (U+000D)."
-							Text { ref contents } => match contents.borrow().deref().chars().nth(0)
-							{
-								Some('\u{0020}') | Some('\u{0009}') | Some('\u{000A}') | Some('\u{000C}') | Some('\u{000D}') => false,
-								
-								_ => true
-							},
-							
-							Comment { .. } => false,
-							
-							_ => true,
-						},
-						
-						None => true,
-					}
-				}
+				local_name!("colgroup") => Self::omit_end_element_colgroup(node),
 				
-				local_name!("thead") =>
-				{
-					// "A thead element's end tag may be omitted if the thead element is immediately followed by a tbody or tfoot element."
-					match node.next_sibling()
-					{
-						Some(following) => following.is_only_local_of(&[local_name!("tbody"), local_name!("tfoot")]),
-						None => false,
-					}
-				}
+				local_name!("thead") => Self::omit_end_element_thead(node),
 				
-				local_name!("tbody") =>
-				{
-					// "A tbody element's end tag may be omitted if the tbody element is immediately followed by a tbody or tfoot element, or if there is no more content in the parent element."
-					match node.next_sibling()
-					{
-						Some(following) => following.is_only_local_of(&[local_name!("tbody"), local_name!("tfoot")]),
-						None => true,
-					}
-				}
+				local_name!("tbody") => Self::omit_end_element_tbody(node),
 				
-				local_name!("tfoot") =>
-				{
-					// "A tfoot element's end tag may be omitted if the tfoot element is immediately followed by a tbody element, or if there is no more content in the parent element."
-					match node.next_sibling()
-					{
-						Some(following) => following.is_only_local(&local_name!("tbody")),
-						None => true,
-					}
-				}
+				local_name!("tfoot") => Self::omit_end_element_tfoot(node),
 				
 				local_name!("tr") =>
 				{
@@ -588,6 +403,243 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 		else
 		{
 			false
+		}
+	}
+	
+	// https://www.w3.org/TR/html5/syntax.html#optional-tags
+	//noinspection SpellCheckingInspection
+	fn omit_start_element(&self, node: &Rc<Node>, name: &QualName, attributes: &RefCell<Vec<Attribute>>) -> bool
+	{
+		let attributes = attributes.borrow();
+		
+		// If an element has no attributes it may be eligible for its start tag to be omitted.
+		// The html, head and body start tags can not be omitted for the Google AMP variant of HTML.
+		if attributes.is_empty() && name.is_unprefixed_and_unnamespaced()
+		{
+			match name.local
+			{
+				local_name!("html") if self.html_head_and_body_tags_are_optional =>
+				{
+					// "An html element's start tag may be omitted if the first thing inside the html element is not a comment."
+					if let Some(first_child) = node.first_child()
+					{
+						match first_child.data
+						{
+							Comment { .. } => false,
+							
+							_ => true,
+						}
+					}
+					else
+					{
+						false
+					}
+				}
+				
+				local_name!("head") if self.html_head_and_body_tags_are_optional =>
+				{
+					// "A head element's start tag may be omitted if the element is empty, or if the first thing inside the head element is an element."
+					if let Some(first_child) = node.first_child()
+					{
+						match first_child.data
+						{
+							NodeData::Element { .. } => true,
+							
+							_ => false,
+						}
+					}
+					else
+					{
+						true
+					}
+				}
+				
+				local_name!("body") if self.html_head_and_body_tags_are_optional =>
+				{
+					// "A body element's start tag may be omitted if the element is empty, or if the first thing inside the body element is not a space character or a comment, except if the first thing inside the body element is a meta, link, script, style, or template element."
+					if let Some(first_child) = node.first_child()
+					{
+						match first_child.data
+						{
+							Comment { .. } => false,
+							
+							// "The space characters, for the purposes of this specification, are U+0020 SPACE, "tab" (U+0009), "LF" (U+000A), "FF" (U+000C), and "CR" (U+000D)."
+							Text { ref contents } => match contents.borrow().deref().chars().nth(0)
+							{
+								Some('\u{0020}') | Some('\u{0009}') | Some('\u{000A}') | Some('\u{000C}') | Some('\u{000D}') => false,
+								
+								_ => true
+							},
+							
+							NodeData::Element { ref name, .. } => if name.is_unprefixed_and_unnamespaced()
+							{
+								match name.local
+								{
+									local_name!("meta") | local_name!("link") | local_name!("script") | local_name!("style") | local_name!("template") => false,
+									
+									_ => true,
+								}
+							}
+							else
+							{
+								false
+							},
+							
+							_ => false,
+						}
+					}
+					else
+					{
+						true
+					}
+				}
+				
+				local_name!("colgroup") =>
+				{
+					// "A colgroup element's start tag may be omitted if the first thing inside the colgroup element is a col element, and if the element is not immediately preceded by another colgroup element whose end tag has been omitted. (It can't be omitted if the element is empty.)"
+					if let Some(first_child) = node.first_child()
+					{
+						if first_child.is_only_local(&local_name!("col"))
+						{
+							// if the element is not immediately preceded by another colgroup element whose end tag has been omitted
+							if let Some(ref previous_sibling) = node.previous_sibling()
+							{
+								if previous_sibling.is_only_local(&local_name!("colgroup"))
+								{
+									!Self::omit_end_element_colgroup(previous_sibling)
+								}
+								else
+								{
+									true
+								}
+							}
+							else
+							{
+								true
+							}
+						}
+						else
+						{
+							false
+						}
+					}
+					else
+					{
+						false
+					}
+				}
+				
+				local_name!("tbody") =>
+				{
+					// "A tbody element's start tag may be omitted if the first thing inside the tbody element is a tr element, and if the element is not immediately preceded by a tbody, thead, or tfoot element whose end tag has been omitted. (It can't be omitted if the element is empty.)"
+					if let Some(first_child) = node.first_child()
+					{
+						if first_child.is_only_local(&local_name!("tr"))
+						{
+							// if the element is not immediately preceded by a tbody, thead, or tfoot element whose end tag has been omitted
+							if let Some(ref previous_sibling) = node.previous_sibling()
+							{
+								if previous_sibling.is_only_local(&local_name!("tbody"))
+								{
+									!Self::omit_end_element_tbody(previous_sibling)
+								}
+								else if previous_sibling.is_only_local(&local_name!("thead"))
+								{
+									!Self::omit_end_element_thead(previous_sibling)
+								}
+								else if previous_sibling.is_only_local(&local_name!("tfoot"))
+								{
+									!Self::omit_end_element_tfoot(previous_sibling)
+								}
+								else
+								{
+									true
+								}
+							}
+							else
+							{
+								true
+							}
+						}
+						else
+						{
+							false
+						}
+					}
+					else
+					{
+						false
+					}
+				}
+				
+				_ => false,
+			}
+		}
+		else
+		{
+			false
+		}
+	}
+	
+	//noinspection SpellCheckingInspection
+	#[inline(always)]
+	fn omit_end_element_colgroup(colgroup_node: &Rc<Node>) -> bool
+	{
+		// "A colgroup element's end tag may be omitted if the colgroup element is not immediately followed by a space character or a comment."
+		match colgroup_node.next_sibling()
+		{
+			Some(following) => match following.data
+			{
+				// "The space characters, for the purposes of this specification, are U+0020 SPACE, "tab" (U+0009), "LF" (U+000A), "FF" (U+000C), and "CR" (U+000D)."
+				Text { ref contents } => match contents.borrow().deref().chars().nth(0)
+				{
+					Some('\u{0020}') | Some('\u{0009}') | Some('\u{000A}') | Some('\u{000C}') | Some('\u{000D}') => false,
+					
+					_ => true
+				},
+				
+				Comment { .. } => false,
+				
+				_ => true,
+			},
+			
+			None => true,
+		}
+	}
+
+	//noinspection SpellCheckingInspection
+	#[inline(always)]
+	fn omit_end_element_tbody(tbody_node: &Rc<Node>) -> bool
+	{
+		// "A tbody element's end tag may be omitted if the tbody element is immediately followed by a tbody or tfoot element, or if there is no more content in the parent element."
+		match tbody_node.next_sibling()
+		{
+			Some(following) => following.is_only_local_of(&[local_name!("tbody"), local_name!("tfoot")]),
+			None => true,
+		}
+	}
+	
+	//noinspection SpellCheckingInspection
+	#[inline(always)]
+	fn omit_end_element_thead(thead_node: &Rc<Node>) -> bool
+	{
+		// "A thead element's end tag may be omitted if the thead element is immediately followed by a tbody or tfoot element."
+		match thead_node.next_sibling()
+		{
+			Some(following) => following.is_only_local_of(&[local_name!("tbody"), local_name!("tfoot")]),
+			None => false,
+		}
+	}
+	
+	//noinspection SpellCheckingInspection
+	#[inline(always)]
+	fn omit_end_element_tfoot(tfoot_node: &Rc<Node>) -> bool
+	{
+		// "A tfoot element's end tag may be omitted if the tfoot element is immediately followed by a tbody element, or if there is no more content in the parent element."
+		match tfoot_node.next_sibling()
+		{
+			Some(following) => following.is_only_local(&local_name!("tbody")),
+			None => true,
 		}
 	}
 	
