@@ -5,7 +5,7 @@
 /// Extensions to DeduplicatedSelectors.
 pub trait DeduplicatedSelectorsExt
 {
-	/// Removes all selectors that don't match.
+	/// Removes all selectors that don't match in the set of `html_document_and_nodes`.
 	/// As a result, the associated StyleRule for these selectors may no longer be necessary if there are no matching selectors at all.
 	#[inline(always)]
 	fn remove_unmatched_selectors<HtmlDocumentOrNode: Selectable>(&mut self, html_document_and_nodes: &[&HtmlDocumentOrNode]);
@@ -17,7 +17,7 @@ impl DeduplicatedSelectorsExt for DeduplicatedSelectors
 	fn remove_unmatched_selectors<HtmlDocumentOrNode: Selectable>(&mut self, html_document_and_nodes: &[&HtmlDocumentOrNode])
 	{
 		#[inline(always)]
-		fn retain(selector: &OurSelector, html_document_and_nodes: &[&HtmlDocumentOrNode]) -> bool
+		fn retain<HtmlDocumentOrNode: Selectable>(selector: &OurSelector, html_document_and_nodes: &[&HtmlDocumentOrNode]) -> bool
 		{
 			const HAS_MATCHES_SO_RETAIN: bool = true;
 			
@@ -32,6 +32,6 @@ impl DeduplicatedSelectorsExt for DeduplicatedSelectors
 			false
 		}
 		
-		self.0.retain(retain);
+		self.0.retain(|selector| retain(selector, html_document_and_nodes));
 	}
 }

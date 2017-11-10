@@ -13,9 +13,9 @@ documentation = "https://docs.rs/css-purify"
 homepage = "https://github.com/lemonrock/css-purify"
 repository = "https://github.com/lemonrock/css-purify.git"
 exclude = ["*"]
-include = ["README.md", "LICENSE", "COPYRIGHT", "src/**/*.rs", "benches/**/*.rs", "examples/**/*.rs", "tests/**/*.rs", "Cargo.toml", "rustfmt.toml", "clippy.toml", "lib/**/*", "src/**/*.h", "tools/**/*", "bindgen-wrapper.conf.d/**/*", "compile-*.conf.d/**/*"]
+include = ["README.md", "LICENSE", "COPYRIGHT", "src/**/*.rs"]
 readme = "README.md"
-publish = false
+publish = true
 version = "0.0.0"
 
 [profile.release]
@@ -27,4 +27,4 @@ debug-assertions = false
 codegen-units = 1
 
 [dependencies]
-html5ever_ext = "0.21.0"
+html5ever_ext = "0.21.2"

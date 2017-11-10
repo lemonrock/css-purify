@@ -27,13 +27,22 @@
 //!	let stylesheet = Stylesheet::from_file_path("/path/to/stylesheet.css");
 //!
 //! // If a CSS rule is unused in all documents (or nodes), then remove it.
-//! stylesheet.remove_unused_css_rules(&[&document});
+//! stylesheet.remove_unused_css_rules(&[&document]);
 //!
 //! // (Optionally) Save stylesheet
 //! stylesheet.to_file_path("/path/to/stylesheet.css");
 //!
 //! // (Optionally) Inject CSS into document, eg for use in self-contained Google AMP pages.
-//! XXXXX
+//! let mut first_style_node = None;
+//! rc_dom.find_all_matching_child_nodes_depth_first_including_this_one(&parse_css_selector("head > style[amp]").unwrap(), &mut |node|
+//! {
+//! 	first_style_node = Some(node.clone());
+//! 	true
+//! });
+//! if let Some(ref first_style_node) = first_style_node
+//! {
+//! 	first_style_node.append_text(&mut rc_dom, &stylesheet.to_css_string());
+//! }
 //!```
 //!
 
@@ -41,11 +50,11 @@
 pub extern crate html5ever_ext;
 
 
-use ::html5ever_ext::RcDom;
 use ::html5ever_ext::Selectable;
 use ::html5ever_ext::css::domain::CssRule;
 use ::html5ever_ext::css::domain::HasCssRules;
 use ::html5ever_ext::css::domain::selectors::DeduplicatedSelectors;
+use ::html5ever_ext::css::domain::selectors::OurSelector;
 
 
 include!("DeduplicatedSelectorsExt.rs");
