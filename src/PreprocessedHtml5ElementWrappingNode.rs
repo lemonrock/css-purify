@@ -34,25 +34,21 @@ impl Debug for PreprocessedHtml5ElementWrappingNode
 impl QualNameExt for PreprocessedHtml5ElementWrappingNode
 {
 	#[inline(always)]
+	fn is_unprefixed_and_unnamespaced(&self) -> bool
+	{
+		self.node.is_unprefixed_and_unnamespaced()
+	}
+	
+	#[inline(always)]
 	fn is_only_local(&self, local_name: &LocalName) -> bool
 	{
-		match self.node.data
-		{
-			NodeData::Element { ref name, .. } => name.is_only_local(local_name),
-			
-			_ => false,
-		}
+		self.node.is_only_local(local_name)
 	}
 	
 	#[inline(always)]
 	fn is_only_local_of(&self, local_names: &[LocalName]) -> bool
 	{
-		match self.node.data
-		{
-			NodeData::Element { ref name, .. } => name.is_only_local_of(local_names),
-			
-			_ => false,
-		}
+		self.node.is_only_local_of(local_names)
 	}
 	
 	#[inline(always)]
@@ -64,12 +60,7 @@ impl QualNameExt for PreprocessedHtml5ElementWrappingNode
 	#[inline(always)]
 	fn text_content_should_be_escaped(&self) -> bool
 	{
-		match self.node.data
-		{
-			NodeData::Element { ref name, .. } => name.text_content_should_be_escaped(),
-			
-			_ => false,
-		}
+		self.node.text_content_should_be_escaped()
 	}
 }
 
@@ -86,39 +77,31 @@ impl Element for PreprocessedHtml5ElementWrappingNode
 	#[inline(always)]
 	fn parent_element(&self) -> Option<Self>
 	{
-		let pointer = self.node.parent.as_ptr();
-		unsafe
-		{
-			match *pointer
-			{
-				None => None,
-				Some(ref weak_parent_node) => weak_parent_node.upgrade().map(|node| Self { node })
-			}
-		}
+		self.node.parent().map(|node| Self { node })
 	}
 	
 	#[inline(always)]
 	fn first_child_element(&self) -> Option<Self>
 	{
-		self.iterate_element_children(false)
+		self.first_or_last_child_element(false)
 	}
 	
 	#[inline(always)]
 	fn last_child_element(&self) -> Option<Self>
 	{
-		self.iterate_element_children(true)
+		self.first_or_last_child_element(true)
 	}
 	
 	#[inline(always)]
 	fn prev_sibling_element(&self) -> Option<Self>
 	{
-		self.iterate_element_siblings(false)
+		self.previous_or_next_sibling_element(false)
 	}
 	
 	#[inline(always)]
 	fn next_sibling_element(&self) -> Option<Self>
 	{
-		self.iterate_element_siblings(true)
+		self.previous_or_next_sibling_element(true)
 	}
 	
 	#[inline(always)]
@@ -335,7 +318,7 @@ impl PreprocessedHtml5ElementWrappingNode
 	}
 	
 	#[inline(always)]
-	fn iterate_element_children(&self, reverse: bool) -> Option<Self>
+	fn first_or_last_child_element(&self, last: bool) -> Option<Self>
 	{
 		#[inline(always)]
 		fn iterate<'a, I: Iterator<Item=&'a std::rc::Rc<Node>>>(mut children_iterator: I) -> Option<PreprocessedHtml5ElementWrappingNode>
@@ -363,7 +346,7 @@ impl PreprocessedHtml5ElementWrappingNode
 		
 		let borrowed = self.node.children.borrow();
 		let iterator = borrowed.iter();
-		if reverse
+		if last
 		{
 			iterate(iterator.rev())
 		}
@@ -375,7 +358,7 @@ impl PreprocessedHtml5ElementWrappingNode
 	}
 	
 	#[inline(always)]
-	fn iterate_element_siblings(&self, reverse: bool) -> Option<Self>
+	fn previous_or_next_sibling_element(&self, next: bool) -> Option<Self>
 	{
 		#[inline(always)]
 		fn iterate<'a, I: Iterator<Item=&'a std::rc::Rc<Node>>>(this: &PreprocessedHtml5ElementWrappingNode, sibling_iterator: I) -> Option<PreprocessedHtml5ElementWrappingNode>
@@ -387,10 +370,19 @@ impl PreprocessedHtml5ElementWrappingNode
 				{
 					return previous_sibling;
 				}
-				previous_sibling = Some(PreprocessedHtml5ElementWrappingNode
+				
+				match current_sibling.data
 				{
-					node: current_sibling.clone(),
-				});
+					NodeData::Element { .. } =>
+					{
+						previous_sibling = Some(PreprocessedHtml5ElementWrappingNode
+						{
+							node: current_sibling.clone(),
+						});
+					}
+					
+					_ => (),
+				}
 			}
 			unreachable!();
 		}
@@ -399,7 +391,7 @@ impl PreprocessedHtml5ElementWrappingNode
 		{
 			let borrowed = parent.node.children.borrow();
 			let iterator = borrowed.iter();
-			if reverse
+			if next
 			{
 				iterate(self, iterator.rev())
 			}

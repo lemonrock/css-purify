@@ -97,6 +97,7 @@ include!("MinifyingHtmlSerializerStackItem.rs");
 include!("NodeExt.rs");
 include!("QualNameExt.rs");
 include!("PreprocessedHtml5ElementWrappingNode.rs");
+include!("UltraMinifyingHtmlSerializer.rs");
 include!("PurifyError.rs");
 include!("RcDomExt.rs");
 include!("VecExt.rs");

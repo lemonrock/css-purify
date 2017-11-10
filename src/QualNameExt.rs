@@ -5,6 +5,10 @@
 /// Additional methods to work with QualName
 pub trait QualNameExt
 {
+	/// Is this name effectively local?
+	#[inline(always)]
+	fn is_unprefixed_and_unnamespaced(&self) -> bool;
+	
 	/// Is this qualified name this local-only name (no prefix, no namespace)
 	#[inline(always)]
 	fn is_only_local(&self, local_name: &LocalName) -> bool;
@@ -27,9 +31,15 @@ pub trait QualNameExt
 impl QualNameExt for QualName
 {
 	#[inline(always)]
+	fn is_unprefixed_and_unnamespaced(&self) -> bool
+	{
+		self.prefix.is_none() && self.ns.is_empty()
+	}
+	
+	#[inline(always)]
 	fn is_only_local(&self, local_name: &LocalName) -> bool
 	{
-		if self.prefix.is_none() && self.ns.is_empty()
+		if self.is_unprefixed_and_unnamespaced()
 		{
 			self.local == *local_name
 		}
@@ -59,6 +69,7 @@ impl QualNameExt for QualName
 		}
 	}
 	
+	//noinspection SpellCheckingInspection
 	#[inline(always)]
 	fn can_have_children(&self) -> bool
 	{
@@ -80,6 +91,7 @@ impl QualNameExt for QualName
 		}
 	}
 	
+	//noinspection SpellCheckingInspection
 	#[inline(always)]
 	fn text_content_should_be_escaped(&self) -> bool
 	{
@@ -99,6 +111,17 @@ impl QualNameExt for QualName
 
 impl QualNameExt for Rc<Node>
 {
+	#[inline(always)]
+	fn is_unprefixed_and_unnamespaced(&self) -> bool
+	{
+		match self.data
+		{
+			NodeData::Element { ref name, .. } => name.is_unprefixed_and_unnamespaced(),
+			
+			_ => false,
+		}
+	}
+	
 	#[inline(always)]
 	fn is_only_local(&self, local_name: &LocalName) -> bool
 	{

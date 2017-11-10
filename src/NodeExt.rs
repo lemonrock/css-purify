@@ -3,7 +3,7 @@
 
 
 /// This trait adds additional methods to a a HTML DOM node.
-pub trait NodeExt
+pub trait NodeExt: Sized
 {
 	/// Validated a HTML DOM node, removes any child comments and processing instructions.
 	fn validate_children_and_remove_comments_and_processing_instructions(&self, context: &Path) -> Result<(), PurifyError>;
@@ -30,6 +30,35 @@ pub trait NodeExt
 	/// The result of this function is true if MatchUser aborted early, or false otherwise.
 	#[inline]
 	fn find_all_matching_child_nodes_depth_first_including_this_one<MatchUser: FnMut(PreprocessedHtml5ElementWrappingNode) -> bool>(&self, selector: &OurSelector, match_user: &mut MatchUser) -> bool;
+	
+	/// Returns the parent of this node.
+	/// Returns None if there is no parent.
+	/// Ordinarily, the 'root' node is of type 'Document'.
+	/// The :root CSS pseudo-element matches the first html element node child of the root node of type 'Document', not 'Document' itself.
+	#[inline(always)]
+	fn parent(&self) -> Option<Self>;
+	
+	/// Returns the first child if extant, which may be an element, text node (or, if not preprocessed, a comment or processing instruction)
+	#[inline(always)]
+	fn first_child(&self) -> Option<Self>;
+	
+	/// Returns the previous sibling, or None if this is the first sibling
+	#[inline(always)]
+	fn previous_sibling(&self) -> Option<Self>
+	{
+		self._previous_or_next_sibling(false)
+	}
+	
+	/// Returns the next sibling, or None if this is the last sibling
+	#[inline(always)]
+	fn next_sibling(&self) -> Option<Self>
+	{
+		self._previous_or_next_sibling(true)
+	}
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn _previous_or_next_sibling(&self, next: bool) -> Option<Self>;
 }
 
 impl NodeExt for Rc<Node>
@@ -193,5 +222,63 @@ impl NodeExt for Rc<Node>
 			}
 		}
 		false
+	}
+	
+	#[inline(always)]
+	fn parent(&self) -> Option<Self>
+	{
+		let pointer = self.parent.as_ptr();
+		unsafe
+		{
+			match *pointer
+			{
+				None => None,
+				Some(ref weak_parent_node) => weak_parent_node.upgrade()
+			}
+		}
+	}
+	
+	#[inline(always)]
+	fn first_child(&self) -> Option<Self>
+	{
+		self.children.borrow().get(0).map(|child| child.clone())
+	}
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn _previous_or_next_sibling(&self, next: bool) -> Option<Self>
+	{
+		#[inline(always)]
+		fn iterate<'a, I: Iterator<Item=&'a std::rc::Rc<Node>>>(this: &Rc<Node>, sibling_iterator: I) -> Option<Rc<Node>>
+		{
+			let mut previous_sibling = None;
+			for current_sibling in sibling_iterator
+			{
+				if Rc::ptr_eq(this, current_sibling)
+				{
+					return previous_sibling;
+				}
+				previous_sibling = Some(current_sibling.clone());
+			}
+			unreachable!();
+		}
+		
+		if let Some(parent) = self.parent()
+		{
+			let borrowed = parent.children.borrow();
+			let iterator = borrowed.iter();
+			if next
+			{
+				iterate(self, iterator.rev())
+			}
+			else
+			{
+				iterate(self, iterator)
+			}
+		}
+		else
+		{
+			None
+		}
 	}
 }
