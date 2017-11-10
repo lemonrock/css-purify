@@ -7,13 +7,14 @@ pub trait HasCssRulesExt: HasCssRules
 {
 	/// Removes unused CSS rules.
 	///
+	/// Only removes each CSS rule if it is unused in all the HtmlDocumentOrNode entries given.
 	/// Returns `true` if the CssRules still contain at least one rule.
-	fn remove_unused_css_rules(&mut self, rc_dom: &RcDom) -> bool;
+	fn remove_unused_css_rules<HtmlDocumentOrNode: Selectable>(&mut self, html_document_and_nodes: &[&HtmlDocumentOrNode]) -> bool;
 }
 
 impl<H: HasCssRules> HasCssRulesExt for H
 {
-	fn remove_unused_css_rules(&mut self, rc_dom: &RcDom) -> bool
+	fn remove_unused_css_rules<HtmlDocumentOrNode: Selectable>(&mut self, html_document_and_nodes: &[&HtmlDocumentOrNode]) -> bool
 	{
 		let css_rules = self.css_rules_vec_mut();
 		
@@ -23,15 +24,15 @@ impl<H: HasCssRules> HasCssRulesExt for H
 			{
 				CssRule::Style(ref mut style_rule) =>
 				{
-					style_rule.selectors.remove_unmatched_selectors(rc_dom);
+					style_rule.selectors.remove_unmatched_selectors(html_document_and_nodes);
 					!style_rule.selectors.0.is_empty()
 				}
 				
-				CssRule::Document(ref mut document_at_rule) => document_at_rule.remove_unused_css_rules(rc_dom),
+				CssRule::Document(ref mut document_at_rule) => document_at_rule.remove_unused_css_rules(html_document_and_nodes),
 				
-				CssRule::Media(ref mut media_at_rule) => media_at_rule.remove_unused_css_rules(rc_dom),
+				CssRule::Media(ref mut media_at_rule) => media_at_rule.remove_unused_css_rules(html_document_and_nodes),
 				
-				CssRule::Supports(ref mut supports_at_rule) => supports_at_rule.remove_unused_css_rules(rc_dom),
+				CssRule::Supports(ref mut supports_at_rule) => supports_at_rule.remove_unused_css_rules(html_document_and_nodes),
 				
 				_ => true,
 			}

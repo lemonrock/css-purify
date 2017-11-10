@@ -8,18 +8,30 @@ pub trait DeduplicatedSelectorsExt
 	/// Removes all selectors that don't match.
 	/// As a result, the associated StyleRule for these selectors may no longer be necessary if there are no matching selectors at all.
 	#[inline(always)]
-	fn remove_unmatched_selectors(&mut self, rc_dom: &RcDom);
+	fn remove_unmatched_selectors<HtmlDocumentOrNode: Selectable>(&mut self, html_document_and_nodes: &[&HtmlDocumentOrNode]);
 }
 
 impl DeduplicatedSelectorsExt for DeduplicatedSelectors
 {
 	#[inline(always)]
-	fn remove_unmatched_selectors(&mut self, rc_dom: &RcDom)
+	fn remove_unmatched_selectors<HtmlDocumentOrNode: Selectable>(&mut self, html_document_and_nodes: &[&HtmlDocumentOrNode])
 	{
-		self.0.retain(|selector|
+		#[inline(always)]
+		fn retain(selector: &OurSelector, html_document_and_nodes: &[&HtmlDocumentOrNode]) -> bool
 		{
-			let has_matches = rc_dom.find_all_matching_nodes(selector, &mut |_| true);
-			has_matches
-		});
+			const HAS_MATCHES_SO_RETAIN: bool = true;
+			
+			for selectable in html_document_and_nodes.iter()
+			{
+				let has_matches = selectable.find_all_matching_child_nodes_depth_first_including_this_one(selector, &mut |_| HAS_MATCHES_SO_RETAIN);
+				if has_matches
+				{
+					return HAS_MATCHES_SO_RETAIN;
+				}
+			}
+			false
+		}
+		
+		self.0.retain(retain);
 	}
 }
