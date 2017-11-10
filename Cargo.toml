@@ -5,7 +5,7 @@
 [package]
 name = "css-purify"
 description = "css-purify works a little like [https://github.com/purifycss/purifycss](purifycss) to strip out unused CSS."
-keywords = ["css", "purify", "purifycss"]
+keywords = ["css", "purify", "purifycss", "html", "HTML5"]
 categories = ["parsing", "web-programming"]
 license = "MIT"
 authors = ["Raphael Cohn <raphael.cohn@stormmq.com>"]

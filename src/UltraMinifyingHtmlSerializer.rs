@@ -42,12 +42,9 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 			
 			Text { ref contents } => self.write_text(contents, node.parent())?,
 			
-			Document =>
+			Document => for child_node in node.children.borrow().iter()
 			{
-				for child_node in node.children.borrow().iter()
-				{
-					self.serialize_node(child_node, false)?;
-				}
+				self.serialize_node(child_node, false)?;
 			},
 			
 			NodeData::Element { ref name, ref attrs, .. } =>
@@ -326,6 +323,7 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 	}
 	
 	// Does not return true for those elements that can not have children
+	//noinspection SpellCheckingInspection
 	fn omit_end_element(&self, node: &Rc<Node>, name: &QualName) -> bool
 	{
 		// The html, head and body start tags can not be omitted for the Google AMP variant of HTML.
@@ -396,6 +394,194 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 					}
 				}
 				
+				local_name!("li") =>
+				{
+					// "An li element's end tag may be omitted if the li element is immediately followed by another li element or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local(&local_name!("li")),
+						None => true,
+					}
+				}
+				
+				local_name!("dt") =>
+				{
+					// "A dt element's end tag may be omitted if the dt element is immediately followed by another dt element or a dd element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("dt"), local_name!("dd")]),
+						None => false,
+					}
+				}
+				
+				local_name!("dd") =>
+				{
+					// "A dd element's end tag may be omitted if the dd element is immediately followed by another dd element or a dt element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("dd"), local_name!("dt")]),
+						None => true,
+					}
+				}
+				
+				local_name!("p") =>
+				{
+					// "A p element's end tag may be omitted if the p element is immediately followed by an address, article, aside, blockquote, div, dl, fieldset, footer, form, h1, h2, h3, h4, h5, h6, header, hgroup, hr, main, nav, ol, p, pre, section, table, or ul, element, or if there is no more content in the parent element and the parent element is not an a element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("address"), local_name!("article"), local_name!("aside"), local_name!("blockquote"), local_name!("div"), local_name!("dl"), local_name!("fieldset"), local_name!("footer"), local_name!("form"), local_name!("h1"), local_name!("h2"), local_name!("h3"), local_name!("h4"), local_name!("h5"), local_name!("h6"), local_name!("header"), local_name!("hgroup"), local_name!("hr"), local_name!("main"), local_name!("nav"), local_name!("ol"), local_name!("p"), local_name!("pre"), local_name!("section"), local_name!("table"), local_name!("ul")]),
+						None => match node.parent()
+						{
+							None => false,
+							Some(parent) => !parent.is_only_local(&local_name!("a"))
+						}
+					}
+				}
+				
+				local_name!("rb") =>
+				{
+					// "An rb element's end tag may be omitted if the rb element is immediately followed by an rb, rt, rtc or rp element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("rb"), local_name!("rt"), local_name!("rtc"), local_name!("rp")]),
+						None => true,
+					}
+				}
+				
+				local_name!("rt") =>
+				{
+					// "An rt element's end tag may be omitted if the rt element is immediately followed by an rb, rt, rtc, or rp element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("rb"), local_name!("rt"), local_name!("rtc"), local_name!("rp")]),
+						None => true,
+					}
+				}
+				
+				local_name!("rtc") =>
+				{
+					// "An rtc element's end tag may be omitted if the rtc element is immediately followed by an rb, rtc or rp element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("rb"), local_name!("rt"), local_name!("rtc"), local_name!("rp")]),
+						None => true,
+					}
+				}
+				
+				local_name!("rp") =>
+				{
+					// "An rp element's end tag may be omitted if the rp element is immediately followed by an rb, rt, rtc or rp element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("rb"), local_name!("rt"), local_name!("rtc"), local_name!("rp")]),
+						None => true,
+					}
+				}
+				
+				local_name!("optgroup") =>
+				{
+					// "An optgroup element's end tag may be omitted if the optgroup element is immediately followed by another optgroup element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local(&local_name!("optgroup")),
+						None => true,
+					}
+				}
+				
+				local_name!("option") =>
+				{
+					// "An option element's end tag may be omitted if the option element is immediately followed by another option element, or if it is immediately followed by an optgroup element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("option"), local_name!("optgroup")]),
+						None => true,
+					}
+				}
+				
+				local_name!("colgroup") =>
+				{
+					// "A colgroup element's end tag may be omitted if the colgroup element is not immediately followed by a space character or a comment."
+					match node.next_sibling()
+					{
+						Some(following) => match following.data
+						{
+							// "The space characters, for the purposes of this specification, are U+0020 SPACE, "tab" (U+0009), "LF" (U+000A), "FF" (U+000C), and "CR" (U+000D)."
+							Text { ref contents } => match contents.borrow().deref().chars().nth(0)
+							{
+								Some('\u{0020}') | Some('\u{0009}') | Some('\u{000A}') | Some('\u{000C}') | Some('\u{000D}') => false,
+								
+								_ => true
+							},
+							
+							Comment { .. } => false,
+							
+							_ => true,
+						},
+						
+						None => true,
+					}
+				}
+				
+				local_name!("thead") =>
+				{
+					// "A thead element's end tag may be omitted if the thead element is immediately followed by a tbody or tfoot element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("tbody"), local_name!("tfoot")]),
+						None => false,
+					}
+				}
+				
+				local_name!("tbody") =>
+				{
+					// "A tbody element's end tag may be omitted if the tbody element is immediately followed by a tbody or tfoot element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("tbody"), local_name!("tfoot")]),
+						None => true,
+					}
+				}
+				
+				local_name!("tfoot") =>
+				{
+					// "A tfoot element's end tag may be omitted if the tfoot element is immediately followed by a tbody element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local(&local_name!("tbody")),
+						None => true,
+					}
+				}
+				
+				local_name!("tr") =>
+				{
+					// A tr element's end tag may be omitted if the tr element is immediately followed by another tr element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local(&local_name!("tr")),
+						None => true,
+					}
+				}
+				
+				local_name!("td") =>
+				{
+					// "A td element's end tag may be omitted if the td element is immediately followed by a td or th element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("td"), local_name!("th")]),
+						None => true,
+					}
+				}
+				
+				local_name!("th") =>
+				{
+					// "A th element's end tag may be omitted if the th element is immediately followed by a td or th element, or if there is no more content in the parent element."
+					match node.next_sibling()
+					{
+						Some(following) => following.is_only_local_of(&[local_name!("td"), local_name!("th")]),
+						None => true,
+					}
+				}
+				
 				_ => false,
 			}
 		}
@@ -412,30 +598,6 @@ impl<W: Write> UltraMinifyingHtmlSerializer<W>
 		self.write_all_qualified_name(&name)?;
 		self.write_all(b">")
 	}
-	
-	
-	
-	/*
-	
-	An li element's end tag may be omitted if the li element is immediately followed by another li element or if there is no more content in the parent element.
-	A dt element's end tag may be omitted if the dt element is immediately followed by another dt element or a dd element.
-	A dd element's end tag may be omitted if the dd element is immediately followed by another dd element or a dt element, or if there is no more content in the parent element.
-	A p element's end tag may be omitted if the p element is immediately followed by an address, article, aside, blockquote, div, dl, fieldset, footer, form, h1, h2, h3, h4, h5, h6, header, hgroup, hr, main, nav, ol, p, pre, section, table, or ul, element, or if there is no more content in the parent element and the parent element is not an a element.
-	An rb element's end tag may be omitted if the rb element is immediately followed by an rb, rt, rtc or rp element, or if there is no more content in the parent element.
-	An rt element's end tag may be omitted if the rt element is immediately followed by an rb, rt, rtc, or rp element, or if there is no more content in the parent element.
-	An rtc element's end tag may be omitted if the rtc element is immediately followed by an rb, rtc or rp element, or if there is no more content in the parent element.
-	An rp element's end tag may be omitted if the rp element is immediately followed by an rb, rt, rtc or rp element, or if there is no more content in the parent element.
-	An optgroup element's end tag may be omitted if the optgroup element is immediately followed by another optgroup element, or if there is no more content in the parent element.
-	An option element's end tag may be omitted if the option element is immediately followed by another option element, or if it is immediately followed by an optgroup element, or if there is no more content in the parent element.
-	A colgroup element's end tag may be omitted if the colgroup element is not immediately followed by a space character or a comment.
-	A thead element's end tag may be omitted if the thead element is immediately followed by a tbody or tfoot element.
-	A tbody element's end tag may be omitted if the tbody element is immediately followed by a tbody or tfoot element, or if there is no more content in the parent element.
-	A tfoot element's end tag may be omitted if the tfoot element is immediately followed by a tbody element, or if there is no more content in the parent element.
-	A tr element's end tag may be omitted if the tr element is immediately followed by another tr element, or if there is no more content in the parent element.
-	A td element's end tag may be omitted if the td element is immediately followed by a td or th element, or if there is no more content in the parent element.
-	A th element's end tag may be omitted if the th element is immediately followed by a td or th element, or if there is no more content in the parent element.
-
-	*/
 	
 	#[inline(always)]
 	fn write_text<S: Deref<Target=str>>(&mut self, contents: &RefCell<S>, parent: Option<Rc<Node>>) -> io::Result<()>
